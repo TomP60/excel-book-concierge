@@ -1,0 +1,4 @@
+GPT35.env
+.streamlit/
+__pycache__/
+*.pyc
