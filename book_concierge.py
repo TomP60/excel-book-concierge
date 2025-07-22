@@ -13,11 +13,11 @@ with open("book_pdf_metadata.json", "r", encoding="utf-8") as f:
     metadata = json.load(f)
 
 # For local testing
-load_dotenv("GPT35.env")
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# load_dotenv("GPT35.env")
+# client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # For Streamlit Cloud
-#client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 def get_embedding(text):
     response = client.embeddings.create(
