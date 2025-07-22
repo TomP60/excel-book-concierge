@@ -13,8 +13,8 @@ with open("book_pdf_metadata.json", "r", encoding="utf-8") as f:
     metadata = json.load(f)
 
 # For local testing
-# load_dotenv("GPT35.env")
-# client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+#load_dotenv("GPT35.env")
+#client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # For Streamlit Cloud
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -74,9 +74,23 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 st.markdown("---")
-st.markdown("Welcome to the **Book Concierge**. I'm here to help you decide whether *Mastering Excel for Home Budgeting* is right for you.")
-st.markdown("Ask anything about the book — what's covered, who it's for, why does it also use LibreCalc, or how it might help your budgeting journey.")
+
+cover_base64 = get_base64_image("MasteringExcel.PNG")
+st.markdown(f"""
+    <div style='display: flex; align-items: center; gap: 20px;'>
+        <a href="https://www.amazon.com/dp/B0FF377S6T" target="_blank">
+            <img src="{cover_base64}" width="160" alt="Mastering Excel Book Cover"/>
+        </a>
+        <div>
+            <h4>Welcome to the <strong>Book Concierge</strong></h4>
+            <p>I'm here to help you decide whether <em>Mastering Excel for Home Budgeting</em> is right for you.</p>
+            <p>Ask anything about the book — what's covered, who it's for, why it also uses LibreCalc, or how it might help your budgeting journey.</p>
+        </div>
+    </div>
+""", unsafe_allow_html=True)
+
 st.markdown("---")
+
 
 # --- Session state ---
 if "chat_history" not in st.session_state:
@@ -86,7 +100,8 @@ if "question_count" not in st.session_state:
     st.session_state.question_count = 0
 
 # --- Input ---
-user_input = st.text_input("🔍 Ask a question about the book:")
+
+user_input = st.text_input("🔍 Ask a question about the book (in any language):")
 output_placeholder = st.empty()
 
 if user_input:
@@ -154,6 +169,6 @@ else:
 # --- Footer ---
 st.markdown("---")
 st.markdown(
-    "Made by Thomas W. Pettit  •  [GitHub](https://github.com/TomP60)  •  [Book](https://github.com/PetiteKatPress/Mastering-Excel-for-Home-Budgeting-Samples)",
+    "Made by Thomas W. Pettit •  [PetiteKat Press](https://petitekatpress.com)  ",
     unsafe_allow_html=True
 )
