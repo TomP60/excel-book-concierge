@@ -19,6 +19,7 @@ with open("book_pdf_metadata.json", "r", encoding="utf-8") as f:
 # For Streamlit Cloud
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
+# --- Embedding function ---
 def get_embedding(text):
     response = client.embeddings.create(
         input=[text],
@@ -91,7 +92,6 @@ st.markdown(f"""
 
 st.markdown("---")
 
-
 # --- Session state ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
@@ -99,65 +99,111 @@ if "chat_history" not in st.session_state:
 if "question_count" not in st.session_state:
     st.session_state.question_count = 0
 
-# --- Input ---
+# --- Response logic ---
+def generate_original_response(user_input, context_text):
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are the Book Concierge for 'Mastering Excel for Home Budgeting'.\n"
+                "You ONLY answer questions based on the content of the book.\n"
+                "If a user asks about unrelated topics, politely explain that your purpose is to help them understand this book.\n"
+                "If the user expresses interest in buying, you may ask: 'Would you prefer PDF, Kindle, or Paperback?'\n"
+                "If the user asks about the Companion PDF for images, be sure to include that it is free but main text is obfuscated'\n"
+                "Provide answers in plain language, try to answer questions in the same language the user used. Default to English if you cannot.\n"
+                "If the user seems unsure about the book, you may suggest helpful prompts like:\n"
+                "- Would you like to know what topics are covered?\n"
+                "- Do you want to see examples of how Excel is used in budgeting?\n"
+                "- Would it help if I explained what kind of reader this book is best suited for?\n"
+                "Responses to all questions about support you should also mention the Companion Agent is there to help and is free to owners of the book to help with questions on the book and a resource for Excel and LibreCalc.\n"
+                "Format all answers in clear, readable Markdown with short paragraphs, bullet points if helpful, and line breaks between ideas.\n"
+                "Do not push a sale or redirect — your goal is to inform, not convert."
+            )
+        }
+    ]
 
+    for prior in st.session_state.chat_history:
+        messages.append({"role": "user", "content": prior["user"]})
+        messages.append({"role": "assistant", "content": prior["assistant"]})
+
+    messages.append({
+        "role": "user",
+        "content": f"Book excerpts:\n\n{context_text}\n\nQuestion: {user_input}"
+    })
+
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=messages
+    )
+
+    return response.choices[0].message.content
+
+def generate_refined_response(user_input, context_text, original_answer):
+    critique_prompt = [
+        {"role": "system", "content": "You are a helpful assistant refining answers to make them more accurate, clear, and helpful."},
+        {"role": "user", "content": (
+            f"Here is a user question:\n\n{user_input}\n\n"
+            f"Here are the book excerpts to base the answer on:\n\n{context_text}\n\n"
+            f"Here is the original answer:\n\n{original_answer}\n\n"
+            "Please refine this answer to improve clarity, ensure factual accuracy, and better formatting. "
+            "Respond with only the improved answer."
+        )}
+    ]
+
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=critique_prompt
+    )
+
+    return response.choices[0].message.content
+
+# --- Input ---
 user_input = st.text_input("🔍 Ask a question about the book (in any language):")
 output_placeholder = st.empty()
 
 if user_input:
+    st.markdown(f"**🧮 Question {st.session_state.question_count + 1} of 10**")  # 👈 Add this line
+
+    # For internal testing, flip to True
+    SHOW_ORIGINAL_FOR_TESTING = False
+
+    if SHOW_ORIGINAL_FOR_TESTING:
+         displayOriginal = st.checkbox("🔍 Show original and refined responses side-by-side", value=False)
+    else:
+         displayOriginal = False
+
+
     with st.spinner("Looking through the book…"):
         matches = search_book_chunks(user_input, k=3)
         context_text = "\n\n".join([f"[Page {m['page']}]:\n{m['text']}" for m in matches])
-
-        messages = [
-            {
-                "role": "system",
-                "content": (
-                    "You are the Book Concierge for 'Mastering Excel for Home Budgeting'.\n"
-                    "You ONLY answer questions based on the content of the book.\n"
-                    "If a user asks about unrelated topics, politely explain that your purpose is to help them understand this book.\n"
-                    "If the user expresses interest in buying, you may ask: 'Would you prefer PDF, Kindle, or Paperback?'\n"
-                    "Provide answers in plain language, try to answer questions in the same language the user used. Default to English if you cannot.\n"
-                    "If the user seems unsure about the book, you may suggest helpful prompts like:\n"
-                    "- Would you like to know what topics are covered?\n"
-                    "- Do you want to see examples of how Excel is used in budgeting?\n"
-                    "- Would it help if I explained what kind of reader this book is best suited for?\n"
-                    "Responses to all questions about support you should also mention the Companion Agent is there to help and is free to owners of the book.\n"
-                    "Format all answers in clear, readable Markdown with short paragraphs, bullet points if helpful, and line breaks between ideas.\n"
-                    "Do not push a sale or redirect — your goal is to inform, not convert."
-                )
-            }
-        ]
-
-        # --- Add prior chat history to context ---
-        for prior in st.session_state.chat_history:
-            messages.append({"role": "user", "content": prior["user"]})
-            messages.append({"role": "assistant", "content": prior["assistant"]})
-
-        # --- Add current user question with book excerpts ---
-        messages.append({
-            "role": "user",
-            "content": f"Book excerpts:\n\n{context_text}\n\nQuestion: {user_input}"
-        })
 
         if st.session_state.question_count >= 10:
             st.warning("⚠️ You've reached the 10-question limit for this session. Please refresh the page to start a new conversation.")
             st.stop()
 
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages
-        )
+        original_answer = generate_original_response(user_input, context_text)
 
-        answer = response.choices[0].message.content
-        output_placeholder.markdown(f"<div class='output-box'>{answer}</div>", unsafe_allow_html=True)
+        if displayOriginal:
+            refined_answer = generate_refined_response(user_input, context_text, original_answer)
 
-        # --- Save this exchange to memory ---
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("### 🧾 Original Answer")
+                st.markdown(f"<div class='output-box'>{original_answer}</div>", unsafe_allow_html=True)
+            with col2:
+                st.markdown("### ✨ Refined Answer")
+                st.markdown(f"<div class='output-box'>{refined_answer}</div>", unsafe_allow_html=True)
+        else:
+            output_placeholder.markdown(f"<div class='output-box'>{original_answer}</div>", unsafe_allow_html=True)
+
         st.session_state.chat_history.append({
             "user": user_input,
-            "assistant": answer
+            "assistant": original_answer
         })
         st.session_state.question_count += 1
+        if st.session_state.question_count >= 10:
+             st.warning("⚠️ You've reached the 10-question limit for this session. Please refresh the page to start a new conversation.")
+             st.stop()
 
         with st.expander("🔎 View book excerpts used to answer your question"):
             for m in matches:
@@ -169,6 +215,6 @@ else:
 # --- Footer ---
 st.markdown("---")
 st.markdown(
-    "Made by Thomas W. Pettit •  [PetiteKat Press](https://petitekatpress.com)  ",
+    "© 2025 Thomas W. Pettit • PetiteKat Press • RAG compliant • [petitekatpress.com](https://petitekatpress.com)",
     unsafe_allow_html=True
 )
