@@ -215,6 +215,9 @@ else:
 # --- Footer ---
 st.markdown("---")
 st.markdown(
+    "🦘 Want to explore my other books with a bit of Aussie flair? Meet [Bazza and the Team](https://chatbot-bazza-7lb6eswutzya6xsnwwa6s9.streamlit.app/) — AI assistants that chat based on all my published books!"
+)
+st.markdown(
     "© 2025 Thomas W. Pettit • PetiteKat Press • RAG compliant • [petitekatpress.com](https://petitekatpress.com)",
     unsafe_allow_html=True
 )
